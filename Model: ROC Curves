@@ -1,0 +1,60 @@
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.utils.class_weight import compute_sample_weight
+
+def plot_roc_curves(model_list, X_train, y_train, X_test, y_test, sample_weight=None,weighted_models=None):
+    plt.figure(figsize=(8, 6))
+
+    if weighted_models is None:
+        weighted_models = []
+
+    for name, model in model_list:
+        print(f"Fitting: {name}")
+
+        if sample_weight is not None and name in weighted_models:
+            model.fit(X_train, y_train, sample_weight=sample_weight)
+        else:
+            model.fit(X_train, y_train)
+
+        if hasattr(model, "predict_proba"):
+            y_score = model.predict_proba(X_test)[:, 1]
+        else:
+            y_score = model.decision_function(X_test)
+
+        fpr, tpr, _ = roc_curve(y_test, y_score)
+        auc = roc_auc_score(y_test, y_score)
+
+        plt.plot(fpr, tpr, label=f"{name} (AUC = {auc:.4f})")
+
+    plt.plot([0, 1], [0, 1], linestyle="--")
+    plt.xlabel("False Positive Rate", fontsize=14)
+    plt.xticks(fontsize=14)
+    plt.ylabel("True Positive Rate", fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.legend(loc="lower right", fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+sample_weights = compute_sample_weight(class_weight="balanced", y=y_train)
+
+all_models = [
+    ("Logistic Regression L1", LogisticRegression(penalty = "l1", solver="saga", C=0.1, max_iter=2000, class_weight="balanced")),
+    ("Logistic Regression L2", LogisticRegression(penalty = "l2", solver="saga", C=0.1, max_iter=2000, class_weight="balanced")),
+    ("Elastic Net", LogisticRegression(penalty = "elasticnet", solver="saga", C=0.1, l1_ratio=0.5, max_iter=2000, class_weight="balanced")),
+    ("SGD Log Loss", SGDClassifier(loss="log_loss", max_iter=2000, class_weight="balanced", random_state=77)),
+    ("Decision Tree", DecisionTreeClassifier(max_depth=15, min_samples_leaf=200, random_state=77, class_weight="balanced")),
+    ("Random Forest", RandomForestClassifier(min_samples_leaf=15, max_depth=10, random_state=77, n_jobs=-1, class_weight="balanced")),
+    ("AdaBoost", AdaBoostClassifier(learning_rate=1.0, n_estimators=300, random_state=77, algorithm="SAMME")),
+    ("Gradient Boosting", GradientBoostingClassifier(random_state=77)),
+    ("SVM Linear", SVC(kernel="linear", class_weight="balanced", random_state=77)),
+    ("SVM RBF", SVC(kernel="rbf", class_weight="balanced", random_state=77))
+]
+
+plot_roc_curves(
+    all_models,
+    X_train_sel, y_train,
+    X_test_sel, y_test,
+    sample_weight=sample_weights,
+    weighted_models=["AdaBoost", "Gradient Boosting"]
+)
+
