@@ -1,0 +1,104 @@
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
+from sklearn.utils.class_weight import compute_sample_weight
+from sklearn.model_selection import GridSearchCV
+# Default training
+results_tree = []
+
+models_tree = [
+    ("Decision Tree", DecisionTreeClassifier(random_state=77, class_weight="balanced")),
+    ("Random Forest", RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced")),
+    ("AdaBoost", AdaBoostClassifier(random_state=77, algorithm="SAMME")),
+    ("Gradient Boosting", GradientBoostingClassifier(random_state=77)),
+]
+
+sample_weights = compute_sample_weight(class_weight="balanced", y=y_train)
+
+for name, model in models_tree:
+    if name in ["AdaBoost", "Gradient Boosting"]:
+        model.fit(X_train_sel, y_train, sample_weight=sample_weights)
+
+        y_prob = model.predict_proba(X_test_sel)[:, 1]
+        y_pred = (y_prob >= 0.5).astype(int)
+
+        tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+        specificity = tn / (tn + fp)
+
+        result = {"Model": name,
+                  "Accuracy": accuracy_score(y_test, y_pred),
+                  "Precision": precision_score(y_test, y_pred, zero_division=0),
+                  "Recall": recall_score(y_test, y_pred, zero_division=0),
+                  "Specificity": specificity,
+                  "ROC_AUC": roc_auc_score(y_test, y_prob)}
+    else:
+        result = evaluate_model(name, model, X_train_sel, y_train, X_test_sel, y_test)
+
+    results_tree.append(result)
+
+results_df_tree = pd.DataFrame(results_tree).sort_values(by="ROC_AUC", ascending=False)
+results_df_tree
+
+# Hyperparameter Fine-tuning
+# Decision Tree
+dt_model = DecisionTreeClassifier(random_state=77, class_weight="balanced")
+dt_param_grid = {"max_depth":  [7, 10, 15], "min_samples_leaf": [150, 200, 250]}
+dt_grid = GridSearchCV(estimator=dt_model, param_grid=dt_param_grid, scoring="roc_auc", cv=5, n_jobs=-1, verbose=1)
+dt_grid.fit(X_train_sel, y_train)
+print("Best Decision Tree params:", dt_grid.best_params_)
+print("Best Decision Tree CV AUC:", dt_grid.best_score_)
+best_dt = dt_grid.best_estimator_
+
+# Random Forest
+rf_model = RandomForestClassifier(random_state=77, n_jobs=-1, class_weight="balanced")
+rf_param_grid = {"max_depth": [5, 7, 10], "min_samples_leaf": [10, 15, 20]}
+rf_grid = GridSearchCV(estimator=rf_model, param_grid=rf_param_grid, scoring="roc_auc", cv=5, n_jobs=-1, verbose=1)
+rf_grid.fit(X_train_sel, y_train)
+print("Best Random Forest params:", rf_grid.best_params_)
+print("Best Random Forest CV AUC:", rf_grid.best_score_)
+best_rf = rf_grid.best_estimator_
+
+# AdaBoost
+ada_model = AdaBoostClassifier(random_state=77, algorithm="SAMME")
+ada_param_grid = {"n_estimators": [200, 300, 500], "learning_rate": [0.5, 1.0, 1.5]}
+ada_grid = GridSearchCV(estimator=ada_model, param_grid=ada_param_grid, scoring="roc_auc", cv=5, n_jobs=-1, verbose=1)
+ada_grid.fit(X_train_sel, y_train)
+print("Best AdaBoost params:", ada_grid.best_params_)
+print("Best AdaBoost CV AUC:", ada_grid.best_score_)
+best_ada = ada_grid.best_estimator_
+
+# After hyperparameter fine-tuning
+results_tree = []
+
+models_tree = [
+    ("Decision Tree", DecisionTreeClassifier(max_depth=15, min_samples_leaf=200, random_state=77, class_weight="balanced")),
+    ("Random Forest", RandomForestClassifier(min_samples_leaf=15, max_depth=10, random_state=77, n_jobs=-1, class_weight="balanced")),
+    ("AdaBoost", AdaBoostClassifier(learning_rate=1.0, n_estimators=300, random_state=77, algorithm="SAMME")),
+    ("Gradient Boosting", GradientBoostingClassifier(random_state=77)),
+]
+
+sample_weights = compute_sample_weight(class_weight="balanced", y=y_train)
+
+for name, model in models_tree:
+    if name in ["AdaBoost", "Gradient Boosting"]:
+        model.fit(X_train_sel, y_train, sample_weight=sample_weights)
+
+        y_prob = model.predict_proba(X_test_sel)[:, 1]
+        y_pred = (y_prob >= 0.5).astype(int)
+
+        tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+        specificity = tn / (tn + fp)
+
+        result = {"Model": name,
+                  "Accuracy": accuracy_score(y_test, y_pred),
+                  "Precision": precision_score(y_test, y_pred, zero_division=0),
+                  "Recall": recall_score(y_test, y_pred, zero_division=0),
+                  "Specificity": specificity,
+                  "ROC_AUC": roc_auc_score(y_test, y_prob)}
+    else:
+        result = evaluate_model(name, model, X_train_sel, y_train, X_test_sel, y_test)
+
+    results_tree.append(result)
+
+results_df_tree = pd.DataFrame(results_tree).sort_values(by="ROC_AUC", ascending=False)
+results_df_tree
+
