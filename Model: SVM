@@ -1,0 +1,16 @@
+from sklearn.svm import SVC
+
+results_svm = []
+
+models_svm = [
+    ("SVM Linear", SVC(kernel="linear", class_weight="balanced", random_state=77)),
+    ("SVM RBF", SVC(kernel="rbf", class_weight="balanced", random_state=77))
+]
+
+for name, model in models_svm:
+    result = evaluate_model(name, model, X_train_sel, y_train, X_test_sel, y_test)
+    results_svm.append(result)
+
+results_df_svm = pd.DataFrame(results_svm).sort_values(by="ROC_AUC", ascending=False)
+results_df_svm
+
