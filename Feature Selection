@@ -1,0 +1,84 @@
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+
+# Flip positive and negative class as assignment target is ICU discharge
+y = (df_encoded["icu_death_flag"] == 0).astype(int)  # Target: 0 = discharged from ICU, 1 = died in ICU
+
+df_X = df_encoded.drop(columns="icu_death_flag")
+
+X_train, X_test, y_train, y_test = train_test_split(df_X, y, test_size=0.2, random_state=77, stratify=y)
+
+# Imputation of missing values
+train_index = X_train.index
+test_index = X_test.index
+imputer = SimpleImputer(strategy="median")
+X_train = imputer.fit_transform(X_train)
+X_test = imputer.transform(X_test)
+
+# Standardization
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+X_train = pd.DataFrame(X_train, columns=df_X.columns, index=train_index)
+X_test = pd.DataFrame(X_test, columns=df_X.columns, index=test_index)
+
+# Feature Selection using L1-Regularisation Logistic Regression 
+# Trying different Cs
+for C in [1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001]:
+    model = LogisticRegression(penalty="l1", solver="saga", class_weight="balanced", max_iter=10000, C=C)
+    model.fit(X_train, y_train)
+    coef = model.coef_[0]
+    print(C, (coef != 0).sum())
+
+for C in [1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001]:
+    model = LogisticRegression(penalty="l1", solver="saga", class_weight="balanced", max_iter=10000, C=C)
+    model.fit(X_train, y_train)
+    y_pred = model.predict_proba(X_test)[:,1]
+    print(C, roc_auc_score(y_test, y_pred))
+
+# Figure 3: 
+C_values = [1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001]
+features = [114, 114, 107, 103, 73, 51, 24]
+auc = [0.9110, 0.9111, 0.9114, 0.9118, 0.9135, 0.9130, 0.8979]
+
+fig, ax1 = plt.subplots(figsize=(8,4))
+ax1.plot(C_values, auc, marker='o', color="#2D6EC7")
+ax1.set_xscale('log')
+ax1.set_xticks(C_values)
+ax1.set_xticklabels(["1", "0.5", "0.1", "0.05", "0.01", "0.005", "0.001"], fontsize=12)
+ax1.set_xlabel("C", fontsize=14)
+ax1.set_ylabel("Test AUC", color="#2D6EC7", fontsize=14)
+ax1.tick_params(axis='y', labelcolor="#2D6EC7", labelsize=12)
+ax1.tick_params(axis='x', labelsize=12)
+ax1.set_ylim(top = 0.915, bottom=0.895)
+ax1.invert_xaxis()
+auc_offsets = [-0.002, -0.0014, -0.0014, 0.001, -0.0015, 0.0008, -0.0014]
+for x, y, offset in zip(C_values, auc, auc_offsets):
+    ax1.text(x, y + offset, f"{y:.4f}", color="#2D6EC7", fontsize=12, ha='center')
+
+ax2 = ax1.twinx()
+ax2.plot(C_values, features, marker='s', linestyle='--', color="#D05C2E")
+ax2.set_ylabel("Number of Selected Features", color="#D05C2E", fontsize=14)
+ax2.tick_params(axis='y', labelcolor="#D05C2E", labelsize=12)
+ax2.set_ylim(top = 120, bottom=0)
+feature_offsets = [-8, -8, 4, -10, 4, -8, 4]
+for x, y, offset in zip(C_values, features, feature_offsets):
+    ax2.text(x, y + offset, f"{y}", color="#943D1A", fontsize=12, ha='center')
+plt.tight_layout()
+plt.show()
+
+selected_model = LogisticRegression(penalty="l1", solver="saga", class_weight="balanced",max_iter=10000,C=0.01)
+selected_model.fit(X_train, y_train)
+coef = pd.Series(selected_model.coef_[0], index=df_X.columns)
+coef = coef[coef != 0]
+
+selected_features = coef.index
+X_train_sel = X_train[selected_features].copy()
+X_test_sel  = X_test[selected_features].copy()
+
