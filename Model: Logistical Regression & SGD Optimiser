@@ -1,0 +1,54 @@
+from sklearn.linear_model import LogisticRegression, SGDClassifier
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.metrics import roc_auc_score
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=77)
+
+search_spaces = {
+    "Logistic Regression L1": (LogisticRegression(penalty="l1", solver="saga", max_iter=5000, class_weight="balanced", random_state=77), {"C": [0.01, 0.1, 1]}),
+    "Logistic Regression L2": (LogisticRegression(penalty="l2", solver="saga", max_iter=5000, class_weight="balanced", random_state=77), {"C": [0.01, 0.1, 1]}),
+    "Elastic Net": (LogisticRegression(penalty="elasticnet", solver="saga", max_iter=5000, class_weight="balanced", random_state=77), {"C": [0.01, 0.1, 1], "l1_ratio": [0.3, 0.5, 0.7]}),
+    "SGD Log Loss": (SGDClassifier(loss="log_loss", max_iter=5000, class_weight="balanced", random_state=77), {"alpha": [1e-4, 1e-3, 1e-2], "penalty": ["l2", "l1", "elasticnet"]})
+}
+
+best_models = {}
+rows = []
+
+for name, (model, param_grid) in search_spaces.items():
+    print(f"Running {name} ...")
+
+    grid = GridSearchCV(estimator=model, param_grid=param_grid, scoring="roc_auc", cv=cv, n_jobs=-1)
+    grid.fit(X_train_sel, y_train)
+    best_model = grid.best_estimator_
+    best_models[name] = best_model
+
+    y_prob = best_model.predict_proba(X_test_sel)[:, 1]
+    test_auc = roc_auc_score(y_test, y_prob)
+
+    rows.append({"Model": name, 
+                "Best Params": grid.best_params_, 
+                "CV ROC AUC": grid.best_score_,
+                "Test ROC AUC": test_auc})
+results_tuned = pd.DataFrame(rows).sort_values("Test ROC AUC", ascending=False)
+results_tuned
+
+results_log = []
+
+models_log = [
+    ("Logistic Regression L1", LogisticRegression(penalty = "l1", solver="saga", C=0.1, max_iter=2000, class_weight="balanced")),
+    ("Logistic Regression L2", LogisticRegression(penalty = "l2", solver="saga", C=0.1, max_iter=2000, class_weight="balanced")),
+    ("Elastic Net", LogisticRegression(penalty = "elasticnet", solver="saga", C=0.1, l1_ratio=0.5, max_iter=2000, class_weight="balanced")),
+    ("SGD Log Loss", SGDClassifier(loss="log_loss", max_iter=2000, class_weight="balanced", random_state=77)),
+]
+
+for name, model in models_log:
+    result = evaluate_model(name, model, X_train_sel, y_train, X_test_sel, y_test)
+    results_log.append(result)
+
+results_df_log = pd.DataFrame(results_log).sort_values(by="ROC_AUC", ascending=False)
+results_df_log
+
+
+
+
+
