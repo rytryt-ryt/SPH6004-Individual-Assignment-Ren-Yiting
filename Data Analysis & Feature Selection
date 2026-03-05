@@ -1,0 +1,64 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+df = pd.read_csv(r"D:\rytrytryt\NUS SSHSPH\Assignment1_mimic dataset.csv")
+df.head()
+
+df.shape
+
+df.dtypes.value_counts()
+
+# Dropping irrelevant variables
+df_reduced =df.drop(columns=["subject_id", "hadm_id", "stay_id","intime", "outtime"])
+
+# Data leakage prevention
+df_reduced = df_reduced.drop(columns=["deathtime", "hospital_expire_flag", "last_careunit"])
+
+df_reduced.shape
+
+# Handling missing values
+missing_percentage = (df_reduced.isna().mean() * 100).sort_values(ascending=False)
+
+# Figure 1: Percentage of missing values
+missing_percentage.plot(kind='bar', figsize=(12,5), color="#2D6EC7") 
+plt.ylabel("Missing Value Percentage", fontsize=14)
+plt.axhline(y=50, color="#D05C2E", linestyle='--', linewidth=2)
+plt.text(x=len(missing_percentage)-1, y=52, s="50% Threshold",color="#D05C2E", ha='right', fontsize=12)
+plt.xticks(rotation=90, fontsize=6)
+plt.yticks(rotation=90, fontsize=14)
+plt.show()
+
+high_missing_cols = missing_percentage[missing_percentage > 50].index
+len(high_missing_cols)
+
+df_reduced = df_reduced.drop(columns=high_missing_cols)
+
+df_reduced.shape
+
+# Encoding of Categorical Variables
+object_cols = df_reduced.select_dtypes(include="object").columns
+df_encoded = pd.get_dummies(df_reduced, columns=object_cols, drop_first=True)
+print("After encoding:", df_encoded.shape)
+
+# Target Distribution
+df_encoded["icu_death_flag"].value_counts(normalize=True) # Target: Class imbalanced
+
+counts = df_encoded['icu_death_flag'].value_counts(normalize=True) * 100
+counts = counts.sort_index()
+
+# Figure 2: Distribution of the ICU death outcome 
+plt.figure(figsize=(6,4))
+sns.barplot(x=counts.index, y=counts.values, palette = ["#2D6EC7", "#D05C2E"])
+plt.ylabel("Percentage (%)", fontsize = 14)
+plt.yticks(fontsize = 14)
+plt.xlabel("ICU Death Flag", fontsize = 14)
+plt.xticks(fontsize = 14)
+
+for i, v in enumerate(counts.values):
+    plt.text(i, v + 0.5, f"{v:.2f}%", ha='center', fontsize = 14)
+    
+plt.ylim(0, 100)
+plt.tight_layout()
+plt.show()
